@@ -1,0 +1,20 @@
+{
+  "name": "ikirere",
+  "version": "1.0.0",
+  "description": "Weather in your terminal. Geocodes a place, fetches a forecast, remembers your favourites.",
+  "type": "module",
+  "bin": {
+    "ikirere": "./bin/ikirere.js"
+  },
+  "files": ["bin", "src"],
+  "scripts": {
+    "start": "node bin/ikirere.js",
+    "test": "node --test",
+    "link": "npm link"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "keywords": ["weather", "cli", "open-meteo"],
+  "license": "MIT"
+}
