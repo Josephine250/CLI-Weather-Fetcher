@@ -6,6 +6,19 @@
   "bin": {
     "ikirere": "./bin/ikirere.js"
   },
+  "settings": { "units": "metric", 
+  "defaultCity": "Kigali" },
+  "favourites": [
+    { "name": "Kigali",
+     "country": "Rwanda", 
+     "admin1": "Kigali City",
+      "latitude": -1.95, "longitude": 30.06, "elevation": 1567, "timezone": "Africa/Kigali" }
+  ],
+  "history": [
+    { "query": "Kigali",
+     "place": "Kigali, Rwanda", 
+     "at": "2026-11-07T13:46:29.151Z" }
+  ],
   "files": [
     "bin",
     "src",

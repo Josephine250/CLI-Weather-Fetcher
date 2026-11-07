@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { IkirereError, EXIT, usageError } from './errors.js';
+import { IkirereError, EXIT, usageError, httpStatusError } from './errors.js';
 
 /** One place for every HTTP call: Axios request + friendly error translation. */
 async function fetchJson(url, timeoutMs) {
@@ -26,11 +26,12 @@ async function fetchJson(url, timeoutMs) {
         hint: 'Try again, or raise IKIRERE_TIMEOUT_MS.',
       });
     }
-    // The server answered, but with a non-2xx status (Axios throws for those).
+    // The server answered with a non-2xx status: respect the real status code.
     if (err.response) {
-      throw new IkirereError(`The weather service answered with an error (HTTP ${err.response.status}).`, {
-        exitCode: EXIT.API,
-        hint: 'This is usually temporary. Try again in a moment.',
+      const body = err.response.data;
+      throw httpStatusError(err.response.status, {
+        reason: body && typeof body === 'object' ? body.reason : undefined,
+        retryAfter: err.response.headers?.['retry-after'],
       });
     }
     // No response at all: offline, DNS failure, connection refused...

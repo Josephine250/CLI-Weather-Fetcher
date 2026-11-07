@@ -1,17 +1,16 @@
-
 import { parseArgs } from 'node:util';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
- 
+
 import { loadConfig, UNITS } from './config.js';
 import { Store, HISTORY_LIMIT } from './store.js';
 import { geocode, getForecast } from './api.js';
 import { makePaint, placeLabel, renderWeather, renderFavourites, renderHistory } from './format.js';
 import { IkirereError, EXIT, usageError } from './errors.js';
- 
-const HELP = `ikirere - weather in terminal
- 
+
+const HELP = `ikirere - weather in your terminal
+
 USAGE
   ikirere <city> [options]          current weather + forecast
   ikirere fav add <city>            save a favourite
@@ -22,7 +21,7 @@ USAGE
   ikirere config                    show settings
   ikirere config set <key> <value>  keys: units (metric|imperial), default-city
   ikirere config unset default-city
- 
+
 OPTIONS
   -d, --days <1-16>       forecast days (default 3)
   -u, --units <system>    metric | imperial
@@ -30,17 +29,17 @@ OPTIONS
       --no-history        do not record this search
   -h, --help              show this help
   -v, --version           show version
- 
+
 ENVIRONMENT
   IKIRERE_HOME            data folder (default ~/.ikirere)
   IKIRERE_UNITS           metric | imperial
   IKIRERE_TIMEOUT_MS      request timeout in ms (default 8000)
   NO_COLOR                disable colours
- 
+
 EXIT CODES
-  0 ok   1 unexpected   2 bad input   3 not found   4 network   5 timeout   6 service error
+  0 ok   1 unexpected   2 bad input   3 not found   4 network   5 timeout   6 service error   7 rate limited
 `;
- 
+
 const OPTIONS = {
   help: { type: 'boolean', short: 'h' },
   version: { type: 'boolean', short: 'v' },
@@ -50,13 +49,13 @@ const OPTIONS = {
   'no-history': { type: 'boolean' },
   clear: { type: 'boolean' },
 };
- 
+
 async function readVersion() {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(await readFile(path.join(here, '..', 'package.json'), 'utf8'));
   return pkg.version;
 }
- 
+
 function parseDays(value) {
   if (value === undefined) return 3;
   const n = Number(value);
@@ -65,16 +64,16 @@ function parseDays(value) {
   }
   return n;
 }
- 
+
 const sameSpot = (a, b) =>
   Math.abs(a.latitude - b.latitude) < 0.01 && Math.abs(a.longitude - b.longitude) < 0.01;
- 
+
 export async function main(argv, io = {}) {
   const stdout = io.stdout ?? process.stdout;
   const stderr = io.stderr ?? process.stderr;
   const env = io.env ?? process.env;
   const out = (s = '') => stdout.write(s + '\n');
- 
+
   try {
     return await run(argv, { env, out, stdout });
   } catch (err) {
@@ -93,7 +92,7 @@ export async function main(argv, io = {}) {
     return EXIT.UNEXPECTED;
   }
 }
- 
+
 async function run(argv, { env, out, stdout }) {
   const { values, positionals } = parseArgs({
     args: argv,
@@ -101,19 +100,19 @@ async function run(argv, { env, out, stdout }) {
     allowPositionals: true,
     strict: true,
   });
- 
+
   if (values.help) { out(HELP); return EXIT.OK; }
   if (values.version) { out(await readVersion()); return EXIT.OK; }
- 
+
   const cfg = loadConfig(env);
   const paint = makePaint(cfg.color && stdout.isTTY);
   const store = new Store(cfg.home);
   const data = await store.load();
- 
+
   const units = values.units ?? cfg.units ?? data.settings.units;
   if (!UNITS.includes(units)) throw usageError(`--units must be one of: ${UNITS.join(', ')}.`);
   const opts = { units, days: parseDays(values.days) };
- 
+
   /** geocode (unless coordinates are already known) -> forecast -> print */
   async function show(place, label, { record = true } = {}) {
     const forecast = await getForecast(place, opts, cfg);
@@ -125,9 +124,9 @@ async function run(argv, { env, out, stdout }) {
       await store.save(data);
     }
   }
- 
+
   const [cmd, ...rest] = positionals;
- 
+
   switch (cmd) {
     case undefined: {
       if (!data.settings.defaultCity) { out(HELP); return EXIT.OK; }
@@ -135,12 +134,12 @@ async function run(argv, { env, out, stdout }) {
       await show(await geocode(city, cfg), city);
       return EXIT.OK;
     }
- 
+
     case 'fav':
     case 'favs':
     case 'favourites':
       return favourites(rest);
- 
+
     case 'history': {
       if (values.clear) {
         data.history = [];
@@ -151,23 +150,23 @@ async function run(argv, { env, out, stdout }) {
       }
       return EXIT.OK;
     }
- 
+
     case 'config':
       return config(rest);
- 
+
     case 'weather': // explicit form, lets you look up a city named "config" or "fav"
       await lookup(rest.join(' '));
       return EXIT.OK;
- 
+
     default:
       await lookup(positionals.join(' '));
       return EXIT.OK;
   }
- 
+
   async function lookup(query) {
     await show(await geocode(query, cfg), query);
   }
- 
+
   async function favourites([action, ...args]) {
     const query = args.join(' ');
     switch (action) {
@@ -225,7 +224,7 @@ async function run(argv, { env, out, stdout }) {
         throw usageError(`Unknown fav command "${action}". Use add, list, remove or weather.`);
     }
   }
- 
+
   async function config([action, key, ...valueParts]) {
     const value = valueParts.join(' ');
     const KEYS = { units: 'units', 'default-city': 'defaultCity' };

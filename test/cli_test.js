@@ -34,6 +34,11 @@ before(async () => {
       const name = url.searchParams.get('name');
       if (name === 'Slowville') return setTimeout(() => json(200, {}), 1000);
       if (name === 'Brokenville') return json(500, {});
+      if (name === 'Badville') return json(400, { error: true, reason: 'Parameter name is invalid' });
+      if (name === 'Missingville') return json(404, {});
+      if (name === 'Limitville') { res.setHeader('retry-after', '30'); return json(429, {}); }
+      if (name === 'Forbidville') return json(403, {});
+      if (name === 'Gatewayville') return json(504, {});
       if (name === 'Nowhereland') return json(200, { generationtime_ms: 0.1 }); // no "results"
       return json(200, { results: [{ name, country: 'Rwanda', admin1: 'Kigali City', latitude: -1.95, longitude: 30.06, elevation: 1567, timezone: 'Africa/Kigali' }] });
     }
@@ -97,6 +102,28 @@ test('timeout -> exit 5', async () => {
 
 test('service error -> exit 6', async () => {
   assert.equal((await run(['Brokenville'])).code, 6);
+});
+
+test('real HTTP status codes are respected', async () => {
+  const bad = await run(['Badville']);
+  assert.equal(bad.code, 2);
+  assert.match(bad.err, /HTTP 400/);
+  assert.match(bad.err, /Parameter name is invalid/);
+
+  const missing = await run(['Missingville']);
+  assert.equal(missing.code, 3);
+  assert.match(missing.err, /HTTP 404/);
+
+  const limited = await run(['Limitville']);
+  assert.equal(limited.code, 7);
+  assert.match(limited.err, /HTTP 429/);
+  assert.match(limited.err, /Wait 30s/);
+
+  assert.equal((await run(['Forbidville'])).code, 6);
+  assert.equal((await run(['Gatewayville'])).code, 5);
+  const server500 = await run(['Brokenville']);
+  assert.equal(server500.code, 6);
+  assert.match(server500.err, /HTTP 500/);
 });
 
 test('network failure -> exit 4', async () => {
